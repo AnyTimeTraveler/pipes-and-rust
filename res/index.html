@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Remarkable Canvas Experiment</title>
+    <canvas width="1176" height="750" id="canvas-overlay"
+            style="border: 1px solid #aaa; position: absolute; left: 10; right; 10"></canvas>
+    <canvas width="1176" height="750" id="canvas"
+            style="border: 1px solid #aaa; position: absolute; left: 10; right; 10 "></canvas>
+</head>
+<body>
+<script>
+
+// Thanks https://github.com/ichaozi/RemarkableFramebuffer
+var MAX_X = 11277;
+var MAX_Y = 7509;
+var RATIO = MAX_X / MAX_Y;
+var MAX_PRESSURE = 4095;
+var MAX_DISPLAY_PRESSURE = 10;
+var RINGBUFFER_SIZE = 10;
+
+// landscape / portrait
+var rotate = false;
+
+var canvas = document.getElementById("canvas");
+var ctx = canvas.getContext("2d");
+
+var canvasOverlay = document.getElementById("canvas-overlay");
+var ctxOverlay = canvasOverlay.getContext("2d");
+
+// Stroke only for drawing, fill only for debug.
+ctx.lineWidth = 2;
+
+let websocket = new WebSocket("ws://" + location.host + "/websocket");
+
+let scaleX = canvas.width / MAX_X / 2;
+let scaleY = canvas.height / MAX_Y / 2;
+let scalePressure = MAX_DISPLAY_PRESSURE / MAX_PRESSURE;
+
+let penState = false;
+
+// Ring buffer to smooth out values.
+let ringbufferX = new Float64Array(RINGBUFFER_SIZE);
+let ringbufferY = new Float64Array(RINGBUFFER_SIZE);
+let ringbufferZ = new Float64Array(RINGBUFFER_SIZE);
+
+let rbI = 0;
+
+let debug = false;
+
+let lastX = null;
+let lastY = null;
+
+function draw() {
+  // Loop through ringbuffer elements...
+  // Average all ringbuffer elements where the pressure is nonzeroish.
+  let avgX = 0;
+  let avgY = 0;
+  let cnt = 0;
+  for (i = 0; i < RINGBUFFER_SIZE; i++) {
+    // If this does look like the end of a stroke, still use the whole
+    // framebuffer. It's short enough to drain quickly without confusing
+    // this stroke with the next.
+    if (ringbufferZ[i] > 10) {
+      avgX += ringbufferX[i];
+      avgY += ringbufferY[i];
+      cnt += 1;
+    }
+  }
+
+  avgX /= cnt;
+  avgY /= cnt;
+  avgX *= scaleX;
+  avgY *= scaleY;
+
+ // If there were zero entries with nonzero pressure, that's the
+ // end of a stroke. Forget the last point.
+ if (cnt == 0) {
+    penState = false;
+    lastX = null;
+    lastY = null;
+  } else {
+    // Only start drawing if we already started a line.
+    if (penState) {
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(avgX, avgY);
+        ctx.stroke();
+     }
+     penState = true;
+
+    // Always assign last x and y when there's pen pressure,
+    // to mark the start of a line.
+    lastX = avgX;
+    lastY = avgY;
+  }
+}
+
+
+function overlay(x, y) {
+  // Clear when hovering, but keep drawing for the duration of a stroke to highlight it.
+  if (!penState) {
+    ctxOverlay.clearRect(0,0,canvasOverlay.width,canvasOverlay.height);
+  }
+  ctxOverlay.fillStyle = "rgb(200, 200, 255)";
+  ctxOverlay.beginPath();
+  ctxOverlay.arc(x, y, 10, 0, 2 * Math.PI);
+  ctxOverlay.fill();
+}
+websocket.onmessage = function(event) {
+  // data is [x, y, pressure]
+  let data = JSON.parse(event.data);
+
+  // Pre-increment rbI so we can use it in draw to refer to the current head.
+  rbI = (rbI + 1) % RINGBUFFER_SIZE;
+  ringbufferX[rbI] = data[0];
+  ringbufferY[rbI] = data[1];
+  ringbufferZ[rbI] = data[2];
+
+  overlay(data[0] * scaleX,  data[1] * scaleY);
+
+  draw();
+
+  if (debug) {
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.fillRect(data[0] * scaleX, data[1] * scaleY, 2, 2);
+    ctx.fill();
+  }
+
+};
+
+document.addEventListener('keydown', logKey);
+
+function logKey(e) {
+  if (e.keyCode == 13) {
+    // enter for rotate
+    rotate = !rotate;
+
+    let oldWidth = canvas.width;
+    canvas.width = canvas.height;
+    canvas.height = oldWidth
+  } else if (e.keyCode == 32) {
+    // Space for clear.
+    canvas.width = canvas.width;
+    e.preventDefault();
+  } else if (e.keyCode == 68) {
+    // 'd' for debug
+    debug = !debug;
+  }
+}
+
+</script>
+</body>
+</html>
