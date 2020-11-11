@@ -19,5 +19,5 @@ if [ $? -eq 0 ]; then
   ssh remarkable "killall pipes-and-rust"
   echo "Done"
   echo "Copying to device..."
-  scp "./target/$arch/$version/pipes-and-rust" "$host:" && echo "Done" && ssh "$host" "./pipes-and-rust"
+  scp "./target/$arch/$version/pipes-and-rust" "$host:/opt/pipes-and-rust" && echo "Done" && ssh "$host" "/opt/pipes-and-rust"
 fi

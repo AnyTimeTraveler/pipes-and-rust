@@ -1,11 +1,28 @@
+extern crate simple_server;
+
 use std::fs::File;
 use std::io::Read;
 use std::thread;
 
+use rust_embed::RustEmbed;
+use simple_server::Server;
 use ws::{listen, Message};
 
+#[derive(RustEmbed)]
+#[folder = "res/"]
+struct Asset;
+
 fn main() {
-    println!("Listening...");
+    let server = Server::new(|_, mut response| {
+        Ok(response.body(Vec::from(Asset::get("index.html").unwrap()))?)
+    });
+
+    thread::spawn(move || {
+        println!("Listening for http connections on port 80...");
+        server.listen("0.0.0.0", "80");
+    });
+
+    println!("Listening for websocket connections on port 55555...");
     listen("0.0.0.0:55555", |out| {
         thread::Builder::new()
             .name(format!("connection_handler_{}", out.connection_id()))
@@ -45,5 +62,4 @@ fn main() {
             Ok(())
         }
     }).unwrap();
-    println!("Ended!");
 }

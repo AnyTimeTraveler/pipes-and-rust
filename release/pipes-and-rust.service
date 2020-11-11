@@ -1,0 +1,10 @@
+[Unit]
+Description=pipes-and-rust
+After=home.mount
+
+[Service]
+ExecStart=/opt/pipes-and-rust
+Restart=never
+
+[Install]
+WantedBy=multi-user.target

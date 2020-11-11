@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 ws = "0.9.1"
+rust-embed = "5.6.0"
+simple-server = "0.4.0"

@@ -1,2 +1,4 @@
 /target/
 /.idea/
+/release/pipes-and-rust
+/*.zip
