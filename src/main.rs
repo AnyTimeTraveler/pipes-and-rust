@@ -39,7 +39,10 @@ fn main() {
                     // Using notes from https://github.com/ichaozi/RemarkableFramebuffer
                     let typ = buf[8];
                     let code = buf[10] as i32 + buf[11] as i32 * 0x100;
-                    let value = buf[12] as i32 + buf[13] as i32 * 0x100 + buf[14] as i32 * 0x10000 + buf[15] as i32 * 0x1000000;
+                    let value = buf[12] as i32
+                        + buf[13] as i32 * 0x100
+                        + buf[14] as i32 * 0x10000
+                        + buf[15] as i32 * 0x1000000;
 
                     // Absolute position
                     if typ == 3 {
@@ -50,16 +53,20 @@ fn main() {
                         } else if code == 24 {
                             pressure = value
                         }
-                        if let Err(value) = out.send(Message::text(format!("[{},{},{}]", x, y, pressure))) {
+                        if let Err(value) =
+                            out.send(Message::text(format!("[{},{},{}]", x, y, pressure)))
+                        {
                             eprintln!("Error: {:?}", value);
                             return;
                         };
                     }
                 }
-            }).expect("creating thread");
+            })
+            .expect("creating thread");
         move |msg| {
             println!("Got: {}", msg);
             Ok(())
         }
-    }).unwrap();
+    })
+    .unwrap();
 }
