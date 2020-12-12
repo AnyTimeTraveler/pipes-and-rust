@@ -84,7 +84,7 @@
       }
 
       websocket.onmessage = function (event) {
-        // data is [x, y, pressure]
+        // data is [x, y, pressure, mode]
         let data = JSON.parse(event.data);
 
         // Pre-increment rbI so we can use it in draw to refer to the current head.
@@ -92,10 +92,11 @@
         ringbufferX[rbI] = data[0];
         ringbufferY[rbI] = data[1];
         ringbufferZ[rbI] = data[2];
+        mode = data[3];
 
         overlay(data[0] * scaleX, data[1] * scaleY);
 
-        draw();
+        draw(mode);
 
         if (debug) {
           ctx.fillStyle = "red";
@@ -139,11 +140,21 @@
       } else {
         // Only start drawing if we already started a line.
         if (penState) {
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(lastX, lastY);
-          ctx.lineTo(avgX, avgY);
-          ctx.stroke();
+          if (mode == 0) {
+            ctx.strokeStyle = "#000000";
+            ctx.lineWidth = 2;
+            ctx.globalCompositeOperation = "source-over";
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(avgX, avgY);
+            ctx.stroke();
+          } else {
+            ctx.fillStyle = "#000000";
+            ctx.globalCompositeOperation = "destination-out";
+            ctx.beginPath();
+            ctx.arc(avgX, avgY, 20, 0, 2 * Math.PI);
+            ctx.fill();
+          }
         }
         penState = true;
 
@@ -162,7 +173,7 @@
       }
       ctxOverlay.fillStyle = "rgb(200, 200, 255)";
       ctxOverlay.beginPath();
-      ctxOverlay.arc(x, y, 10, 0, 2 * Math.PI);
+      ctxOverlay.arc(x, y, 20, 0, 2 * Math.PI);
       ctxOverlay.fill();
     }
 

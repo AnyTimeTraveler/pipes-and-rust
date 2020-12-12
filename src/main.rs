@@ -34,6 +34,7 @@ fn main() {
                 let mut x = 0;
                 let mut y = 0;
                 let mut pressure = 0;
+                let mut mode = 0;
 
                 while let Ok(()) = input.read_exact(&mut buf) {
                     // Using notes from https://github.com/ichaozi/RemarkableFramebuffer
@@ -44,6 +45,13 @@ fn main() {
                         + buf[14] as i32 * 0x10000
                         + buf[15] as i32 * 0x1000000;
 
+                    if typ == 1 {
+                        if code == 320 {
+                            mode = 0;
+                        } else if code == 321 {
+                            mode = 1;
+                        }
+                    }
                     // Absolute position
                     if typ == 3 {
                         if code == 0 {
@@ -53,9 +61,10 @@ fn main() {
                         } else if code == 24 {
                             pressure = value
                         }
-                        if let Err(value) =
-                            out.send(Message::text(format!("[{},{},{}]", x, y, pressure)))
-                        {
+                        if let Err(value) = out.send(Message::text(format!(
+                            "[{},{},{},{}]",
+                            x, y, pressure, mode
+                        ))) {
                             eprintln!("Error: {:?}", value);
                             return;
                         };
