@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Remarkable Canvas</title>
+    <title>ReMarkable Canvas</title>
     <meta charset="UTF-8">
 </head>
 <body>
@@ -9,14 +9,14 @@
 <label>Address: <input type="text" id="address"></label>
 <button onclick="connect()">Connect</button>
 <div>Status:
-    <div id="status" style="display: inline">not yet connected</div>
+    <div id="status" style="display: inline">Not yet connected</div>
 </div>
 <hr>
 <div style="position: relative; width: 1176px; height: 750px;border: 1px solid #aaa">
     <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" id="canvas-overlay"></canvas>
     <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" id="canvas"></canvas>
 </div>
-<p>Enter to clear screen</p>
+<p>Enter to rotate canvas, Space to clear screen</p>
 
 <script>
 
@@ -64,21 +64,29 @@
 
         document.getElementById("status").textContent = "connecting...";
         console.log("Attempting to connect to ws://" + address);
-        let websocket = new WebSocket("ws://" + address);
+        let websocket;
+        try {
+            websocket = new WebSocket("ws://" + address);
+        } catch (e) {
+            console.dir(e);
+            document.getElementById("status").textContent = "Error: Invalid Address";
+        }
 
         websocket.onopen = function () {
             console.log("Connected");
-            document.getElementById("status").textContent = "connected";
+            document.getElementById("status").textContent = "Connected";
         }
 
         websocket.onerror = function () {
             console.log("Error");
-            document.getElementById("status").textContent = "error";
+            document.getElementById("status").textContent = "Error";
         }
 
         websocket.onclose = function () {
             console.log("Disconnected");
-            document.getElementById("status").textContent = "disconnected";
+            if (document.getElementById("status").textContent !== "Error") {
+                document.getElementById("status").textContent = "Disconnected";
+            }
         }
 
         websocket.onmessage = function (event) {
@@ -167,21 +175,30 @@
     document.addEventListener('keydown', logKey);
 
     function logKey(e) {
-        if (e.keyCode === 13) {
+        if (e.code === "Enter") {
             // enter for rotate
+            e.preventDefault();
             rotate = !rotate;
 
-            let oldWidth = canvas.width;
-            canvas.width = canvas.height;
-            canvas.height = oldWidth
-        } else if (e.keyCode === 32) {
+            rotateCanvas(canvas);
+            rotateCanvas(canvasOverlay);
+        } else if (e.code === "Space") {
             // Space for clear.
-            canvas.dataset = null;
             e.preventDefault();
-        } else if (e.keyCode == 68) {
+            canvas.dataset = null;
+        } else if (e.code === "KeyD") {
             // 'd' for debug
+            e.preventDefault();
             debug = !debug;
         }
+    }
+
+    function rotateCanvas(c) {
+        let oldWidth = c.width;
+        // noinspection JSSuspiciousNameCombination
+        c.width = c.height;
+        // noinspection JSSuspiciousNameCombination
+        c.height = oldWidth
     }
 
     document.getElementById("address").value = window.location.hostname + ":55555";
