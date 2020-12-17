@@ -15,7 +15,7 @@ Draw on a html canvas directly from your reMarkable 2.
 1. SSH access to the reMarkable for installation
 2. (when building from source) Rust
 
-# Installation (from Binary) 
+# Installation (from Binary)
 
 1. Download the [latest release](https://github.com/AnyTimeTraveler/pipes-and-rust/releases)
 2. Set IP or hostname in `install.sh`

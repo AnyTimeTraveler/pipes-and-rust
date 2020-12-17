@@ -1,24 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <title>ReMarkable Canvas</title>
-    <meta charset="UTF-8">
-</head>
-<body>
 
-<label>Address: <input type="text" id="address"></label>
-<button onclick="connect()">Connect</button>
-<div>Status:
+<head>
+  <title>ReMarkable Canvas</title>
+  <meta charset="UTF-8">
+</head>
+
+<body>
+  <label>Address: <input type="text" id="address"></label>
+  <button onclick="connect()">Connect</button>
+  <div>Status:
     <div id="status" style="display: inline">Not yet connected</div>
-</div>
-<hr>
-<div style="position: relative; width: 1176px; height: 750px;border: 1px solid #aaa">
+  </div>
+  <hr>
+  <div style="position: relative; width: 1176px; height: 750px;border: 1px solid #aaa">
     <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" id="canvas-overlay"></canvas>
     <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" id="canvas"></canvas>
-</div>
-<p>Enter to rotate canvas, Space to clear screen</p>
+  </div>
+  <p>Enter to rotate canvas, Space to clear screen</p>
 
-<script>
+  <script>
 
     // Found by finding the maximum values when experimenting
     const MAX_X = 20966;
@@ -60,149 +61,161 @@
     let lastY = null;
 
     function connect() {
-        let address = document.getElementById("address").value;
+      let address = document.getElementById("address").value;
 
-        document.getElementById("status").textContent = "connecting...";
-        console.log("Attempting to connect to ws://" + address);
-        let websocket;
-        try {
-            websocket = new WebSocket("ws://" + address);
-        } catch (e) {
-            console.dir(e);
-            document.getElementById("status").textContent = "Error: Invalid Address";
+      document.getElementById("status").textContent = "connecting...";
+      console.log("Attempting to connect to ws://" + address);
+      let websocket;
+      try {
+        websocket = new WebSocket("ws://" + address);
+      } catch (e) {
+        console.dir(e);
+        document.getElementById("status").textContent = "Error: Invalid Address";
+      }
+
+      websocket.onopen = function () {
+        console.log("Connected");
+        document.getElementById("status").textContent = "Connected";
+      }
+
+      websocket.onerror = function () {
+        console.log("Error");
+        document.getElementById("status").textContent = "Error";
+      }
+
+      websocket.onclose = function () {
+        console.log("Disconnected");
+        if (document.getElementById("status").textContent !== "Error") {
+          document.getElementById("status").textContent = "Disconnected";
+        }
+      }
+
+      websocket.onmessage = function (event) {
+        // data is [x, y, pressure, mode]
+        let data = JSON.parse(event.data);
+
+        // Pre-increment rbI so we can use it in draw to refer to the current head.
+        rbI = (rbI + 1) % RINGBUFFER_SIZE;
+        ringbufferX[rbI] = data[0];
+        ringbufferY[rbI] = data[1];
+        ringbufferZ[rbI] = data[2];
+        let mode = data[3];
+
+        overlay(data[0] * scaleX, data[1] * scaleY);
+
+        draw(mode);
+
+        if (debug) {
+          ctx.fillStyle = "red";
+          ctx.beginPath();
+          ctx.fillRect(data[0] * scaleX, data[1] * scaleY, 2, 2);
+          ctx.fill();
         }
 
-        websocket.onopen = function () {
-            console.log("Connected");
-            document.getElementById("status").textContent = "Connected";
-        }
-
-        websocket.onerror = function () {
-            console.log("Error");
-            document.getElementById("status").textContent = "Error";
-        }
-
-        websocket.onclose = function () {
-            console.log("Disconnected");
-            if (document.getElementById("status").textContent !== "Error") {
-                document.getElementById("status").textContent = "Disconnected";
-            }
-        }
-
-        websocket.onmessage = function (event) {
-            // data is [x, y, pressure]
-            let data = JSON.parse(event.data);
-
-            // Pre-increment rbI so we can use it in draw to refer to the current head.
-            rbI = (rbI + 1) % RINGBUFFER_SIZE;
-            ringbufferX[rbI] = data[0];
-            ringbufferY[rbI] = data[1];
-            ringbufferZ[rbI] = data[2];
-
-            overlay(data[0] * scaleX, data[1] * scaleY);
-
-            draw();
-
-            if (debug) {
-                ctx.fillStyle = "red";
-                ctx.beginPath();
-                ctx.fillRect(data[0] * scaleX, data[1] * scaleY, 2, 2);
-                ctx.fill();
-            }
-
-        };
+      };
 
     }
 
-    function draw() {
-        // Loop through ringbuffer elements...
-        // Average all ringbuffer elements where the pressure is nonzeroish.
-        let avgX = 0;
-        let avgY = 0;
-        let cnt = 0;
-        for (let i = 0; i < RINGBUFFER_SIZE; i++) {
-            // If this does look like the end of a stroke, still use the whole
-            // framebuffer. It's short enough to drain quickly without confusing
-            // this stroke with the next.
-            if (ringbufferZ[i] > 10) {
-                avgX += ringbufferX[i];
-                avgY += ringbufferY[i];
-                cnt += 1;
-            }
+    function draw(mode) {
+      // Loop through ringbuffer elements...
+      // Average all ringbuffer elements where the pressure is nonzeroish.
+      let avgX = 0;
+      let avgY = 0;
+      let cnt = 0;
+      for (let i = 0; i < RINGBUFFER_SIZE; i++) {
+        // If this does look like the end of a stroke, still use the whole
+        // framebuffer. It's short enough to drain quickly without confusing
+        // this stroke with the next.
+        if (ringbufferZ[i] > 10) {
+          avgX += ringbufferX[i];
+          avgY += ringbufferY[i];
+          cnt += 1;
         }
+      }
 
-        avgX /= cnt;
-        avgY /= cnt;
-        avgX *= scaleX;
-        avgY *= scaleY;
+      avgX /= cnt;
+      avgY /= cnt;
+      avgX *= scaleX;
+      avgY *= scaleY;
 
-        // If there were zero entries with nonzero pressure, that's the
-        // end of a stroke. Forget the last point.
-        if (cnt == 0) {
-            penState = false;
-            lastX = null;
-            lastY = null;
-        } else {
-            // Only start drawing if we already started a line.
-            if (penState) {
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(lastX, lastY);
-                ctx.lineTo(avgX, avgY);
-                ctx.stroke();
-            }
-            penState = true;
-
-            // Always assign last x and y when there's pen pressure,
-            // to mark the start of a line.
-            lastX = avgX;
-            lastY = avgY;
+      // If there were zero entries with nonzero pressure, that's the
+      // end of a stroke. Forget the last point.
+      if (cnt === 0) {
+        penState = false;
+        lastX = null;
+        lastY = null;
+      } else {
+        // Only start drawing if we already started a line.
+        if (penState) {
+          if (mode === 0) {
+            ctx.strokeStyle = "#000000";
+            ctx.lineWidth = 2;
+            ctx.globalCompositeOperation = "source-over";
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(avgX, avgY);
+            ctx.stroke();
+          } else {
+            ctx.fillStyle = "#000000";
+            ctx.globalCompositeOperation = "destination-out";
+            ctx.beginPath();
+            ctx.arc(avgX, avgY, 20, 0, 2 * Math.PI);
+            ctx.fill();
+          }
         }
+        penState = true;
+
+        // Always assign last x and y when there's pen pressure,
+        // to mark the start of a line.
+        lastX = avgX;
+        lastY = avgY;
+      }
     }
 
 
     function overlay(x, y) {
-        // Clear when hovering, but keep drawing for the duration of a stroke to highlight it.
-        if (!penState) {
-            ctxOverlay.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
-        }
-        ctxOverlay.fillStyle = "rgb(200, 200, 255)";
-        ctxOverlay.beginPath();
-        ctxOverlay.arc(x, y, 10, 0, 2 * Math.PI);
-        ctxOverlay.fill();
+      // Clear when hovering, but keep drawing for the duration of a stroke to highlight it.
+      if (!penState) {
+        ctxOverlay.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
+      }
+      ctxOverlay.fillStyle = "rgb(200, 200, 255)";
+      ctxOverlay.beginPath();
+      ctxOverlay.arc(x, y, 20, 0, 2 * Math.PI);
+      ctxOverlay.fill();
     }
 
     document.addEventListener('keydown', logKey);
 
     function logKey(e) {
-        if (e.code === "Enter") {
-            // enter for rotate
-            e.preventDefault();
-            rotate = !rotate;
+      if (e.code === "Enter") {
+        // enter for rotate
+        e.preventDefault();
+        rotate = !rotate;
 
-            rotateCanvas(canvas);
-            rotateCanvas(canvasOverlay);
-        } else if (e.code === "Space") {
-            // Space for clear.
-            e.preventDefault();
-            canvas.dataset = null;
-        } else if (e.code === "KeyD") {
-            // 'd' for debug
-            e.preventDefault();
-            debug = !debug;
-        }
+        rotateCanvas(canvas);
+        rotateCanvas(canvasOverlay);
+      } else if (e.code === "Space") {
+        // Space for clear.
+        e.preventDefault();
+        canvas.dataset = null;
+      } else if (e.code === "KeyD") {
+        // 'd' for debug
+        e.preventDefault();
+        debug = !debug;
+      }
     }
 
     function rotateCanvas(c) {
-        let oldWidth = c.width;
-        // noinspection JSSuspiciousNameCombination
-        c.width = c.height;
-        // noinspection JSSuspiciousNameCombination
-        c.height = oldWidth
+      let oldWidth = c.width;
+      // noinspection JSSuspiciousNameCombination
+      c.width = c.height;
+      // noinspection JSSuspiciousNameCombination
+      c.height = oldWidth
     }
 
     document.getElementById("address").value = window.location.hostname + ":55555";
     connect();
-</script>
+  </script>
 </body>
+
 </html>
