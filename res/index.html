@@ -4,6 +4,22 @@
 <head>
   <title>ReMarkable Canvas</title>
   <meta charset="UTF-8">
+  <style>
+      #container {
+          position: relative;
+          border: 1px solid #aaa;
+      }
+
+      .normal {
+          width: 1176px;
+          height: 750px;
+      }
+
+      .rotated {
+          width: 750px;
+          height: 1176px;
+      }
+  </style>
 </head>
 
 <body>
@@ -13,7 +29,7 @@
     <div id="status" style="display: inline">Not yet connected</div>
   </div>
   <hr>
-  <div style="position: relative; width: 1176px; height: 750px;border: 1px solid #aaa">
+  <div id="container" class="normal">
     <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" id="canvas-overlay"></canvas>
     <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" id="canvas"></canvas>
   </div>
@@ -30,7 +46,7 @@
     const RINGBUFFER_SIZE = 10;
 
     // landscape / portrait
-    let rotate = false;
+    let rotated = false;
 
     let canvas = document.getElementById("canvas");
     let ctx = canvas.getContext("2d");
@@ -69,8 +85,7 @@
       try {
         websocket = new WebSocket("ws://" + address);
       } catch (e) {
-        console.dir(e);
-        document.getElementById("status").textContent = "Error: Invalid Address";
+        document.getElementById("status").textContent = "Error";
       }
 
       websocket.onopen = function () {
@@ -180,7 +195,11 @@
       }
       ctxOverlay.fillStyle = "rgb(200, 200, 255)";
       ctxOverlay.beginPath();
-      ctxOverlay.arc(x, y, 20, 0, 2 * Math.PI);
+      if (rotated) {
+        ctxOverlay.arc(y, x, 20, 0, 2 * Math.PI);
+      } else {
+        ctxOverlay.arc(x, y, 20, 0, 2 * Math.PI);
+      }
       ctxOverlay.fill();
     }
 
@@ -188,9 +207,14 @@
 
     function logKey(e) {
       if (e.code === "Enter") {
-        // enter for rotate
-        e.preventDefault();
-        rotate = !rotate;
+        // enter for rotated
+        let container = document.getElementById("container");
+        if (rotated) {
+          container.className = "normal";
+        } else {
+          container.className = "rotated";
+        }
+        rotated = !rotated;
 
         rotateCanvas(canvas);
         rotateCanvas(canvasOverlay);
@@ -198,6 +222,7 @@
         // Space for clear.
         e.preventDefault();
         canvas.dataset = null;
+        console.log("Space");
       } else if (e.code === "KeyD") {
         // 'd' for debug
         e.preventDefault();
