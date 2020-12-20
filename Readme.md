@@ -1,6 +1,7 @@
 # Pipes and Rust
 
-Draw on a html canvas directly from your reMarkable 2.
+A small program that runs on your reMarkable 2 that allows you to draw on a tiny website hosted on the tablet itself.
+No need to install anything else.
 
 ![](images/wiriting_test_canvas.png)
 
@@ -12,25 +13,28 @@ Draw on a html canvas directly from your reMarkable 2.
 
 # Requirements
 
-1. SSH access to the reMarkable for installation
-2. (when building from source) Rust
+1. SSH access to the reMarkable 2 for installation (passwordless ssh-key recommended)
+2. (when building from source) [Rust](https://rustup.rs/)
+3. (when building from source) [Cross](https://github.com/rust-embedded/cross)
 
 # Installation (from Binary)
 
 1. Download the [latest release](https://github.com/AnyTimeTraveler/pipes-and-rust/releases)
 2. Set IP or hostname in `install.sh`
-3. Run install.sh
+3. Run `install.sh` as normal user
 
 # Installation (from Source)
 
 1. Install [Rust](https://rustup.rs/)
 2. Install [Cross](https://github.com/rust-embedded/cross) to build for armv7
 3. Set hostname in `build_push_run.sh`
-4. Run `build_push_run.sh` with either 'debug' or 'release' as parameter
+4. Execute `build_push_run.sh`
 
 # Credits
 
 This work is based on [pipes-and-paper](https://gitlab.com/afandian/pipes-and-paper) by Joe Wass and uses his code to read the stylus coordinates.
+
+Thank you to [MarkPash](https://github.com/MarkPash) for adding the eraser function.
 
 # License
 
