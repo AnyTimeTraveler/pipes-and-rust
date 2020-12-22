@@ -23,10 +23,26 @@
 </head>
 
 <body>
-  <label>Address: <input type="text" id="address"></label>
-  <button onclick="connect()">Connect</button>
-  <div>Status:
-    <div id="status" style="display: inline">Not yet connected</div>
+  <div style="display: flex; flex-direction: row; flex-wrap: nowrap">
+    <div>
+      <label>Address: <input type="text" id="address"></label>
+      <button onclick="connect()">Connect</button>
+      <div>Status:
+        <div id="status" style="display: inline">Not yet connected</div>
+      </div>
+    </div>
+    <div style="display: block; margin-left: 20px">
+      <div>
+        <label>Change Pensize with Pressure:
+          <input id="pressureCheckbox" type="checkbox" oninput="updatePressureResponse()" checked>
+        </label>
+      </div>
+      <div>
+        <label>Pen size:
+          <input id="pensizeSelector" type="number" min="1" max="100" oninput="updateLineWidth()" value="16">
+        </label>
+      </div>
+    </div>
   </div>
   <hr>
   <div id="container" class="normal">
@@ -41,7 +57,7 @@
     const MAX_X = 20966;
     const MAX_Y = 15725;
     const RATIO = MAX_X / MAX_Y;
-    const MAX_PRESSURE = 4095;
+    const MAX_PRESSURE = 4096;
     const MAX_DISPLAY_PRESSURE = 10;
     const RINGBUFFER_SIZE = 10;
 
@@ -54,9 +70,8 @@
     let canvasOverlay = document.getElementById("canvas-overlay");
     let ctxOverlay = canvasOverlay.getContext("2d");
 
-    // Stroke only for drawing, fill only for debug.
-    ctx.lineWidth = 2;
-
+    let lineWidthModifier = 2.0;
+    let usePenPressure = true;
 
     let scaleX = canvas.width / MAX_X;
     let scaleY = canvas.height / MAX_Y;
@@ -68,6 +83,7 @@
     let ringbufferX = new Float64Array(RINGBUFFER_SIZE);
     let ringbufferY = new Float64Array(RINGBUFFER_SIZE);
     let ringbufferZ = new Float64Array(RINGBUFFER_SIZE);
+    let mode = 0;
 
     let rbI = 0;
 
@@ -75,6 +91,24 @@
 
     let lastX = null;
     let lastY = null;
+
+    function updateLineWidth() {
+      lineWidthModifier = document.getElementById("pensizeSelector").value / 8;
+    }
+
+    function updatePressureResponse() {
+      usePenPressure = document.getElementById("pressureCheckbox").checked;
+    }
+
+    function calculateLineWidth(pressure) {
+      console.log(pressure, MAX_PRESSURE, lineWidthModifier);
+      if (usePenPressure) {
+        let p = pressure / MAX_PRESSURE;
+        return lineWidthModifier * (p - 0.5) * 2;
+      } else {
+        return lineWidthModifier;
+      }
+    }
 
     function connect() {
       let address = document.getElementById("address").value;
@@ -114,11 +148,11 @@
         ringbufferX[rbI] = data[0];
         ringbufferY[rbI] = data[1];
         ringbufferZ[rbI] = data[2];
-        let mode = data[3];
+        mode = data[3];
 
         overlay(data[0] * scaleX, data[1] * scaleY);
 
-        draw(mode);
+        draw();
 
         if (debug) {
           ctx.fillStyle = "red";
@@ -131,11 +165,12 @@
 
     }
 
-    function draw(mode) {
+    function draw() {
       // Loop through ringbuffer elements...
       // Average all ringbuffer elements where the pressure is nonzeroish.
       let avgX = 0;
       let avgY = 0;
+      let avgZ = 0;
       let cnt = 0;
       for (let i = 0; i < RINGBUFFER_SIZE; i++) {
         // If this does look like the end of a stroke, still use the whole
@@ -144,12 +179,14 @@
         if (ringbufferZ[i] > 10) {
           avgX += ringbufferX[i];
           avgY += ringbufferY[i];
+          avgZ += ringbufferZ[i];
           cnt += 1;
         }
       }
 
       avgX /= cnt;
       avgY /= cnt;
+      avgZ /= cnt;
       avgX *= scaleX;
       avgY *= scaleY;
 
@@ -164,7 +201,7 @@
         if (penState) {
           if (mode === 0) {
             ctx.strokeStyle = "#000000";
-            ctx.lineWidth = 2;
+            ctx.lineWidth = calculateLineWidth(avgZ);
             ctx.globalCompositeOperation = "source-over";
             ctx.beginPath();
             ctx.moveTo(lastX, lastY);
@@ -187,48 +224,41 @@
       }
     }
 
-
     function overlay(x, y) {
       // Clear when hovering, but keep drawing for the duration of a stroke to highlight it.
       if (!penState) {
         ctxOverlay.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
       }
-      ctxOverlay.fillStyle = "rgb(200, 200, 255)";
+      ctxOverlay.fillStyle = mode === 0 ? "rgb(200,200,255)" : "rgb(255,200,200)";
       ctxOverlay.beginPath();
-      if (rotated) {
-        ctxOverlay.arc(y, x, 20, 0, 2 * Math.PI);
-      } else {
-        ctxOverlay.arc(x, y, 20, 0, 2 * Math.PI);
-      }
+      ctxOverlay.arc(x, y, 20, 0, 2 * Math.PI);
       ctxOverlay.fill();
     }
 
-    document.addEventListener('keydown', logKey);
-
-    function logKey(e) {
+    document.addEventListener('keydown', function (e) {
       if (e.code === "Enter") {
         // enter for rotated
         let container = document.getElementById("container");
-        if (rotated) {
-          container.className = "normal";
-        } else {
-          container.className = "rotated";
-        }
         rotated = !rotated;
+        console.log("Rot: ", rotated);
+        if (rotated) {
+          container.className = "rotated";
+        } else {
+          container.className = "normal";
+        }
 
         rotateCanvas(canvas);
         rotateCanvas(canvasOverlay);
       } else if (e.code === "Space") {
         // Space for clear.
         e.preventDefault();
-        canvas.dataset = null;
-        console.log("Space");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctxOverlay.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
       } else if (e.code === "KeyD") {
         // 'd' for debug
-        e.preventDefault();
         debug = !debug;
       }
-    }
+    });
 
     function rotateCanvas(c) {
       let oldWidth = c.width;
