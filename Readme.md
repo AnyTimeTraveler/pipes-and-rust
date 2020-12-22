@@ -3,7 +3,7 @@
 A small program that runs on your reMarkable 2 that allows you to draw on a tiny website hosted on the tablet itself.
 No need to install anything else.
 
-![](images/wiriting_test_canvas.png)
+![Demo](images/demo.gif)
 
 # Usage
 
