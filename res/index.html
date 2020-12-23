@@ -19,6 +19,10 @@
           width: 750px;
           height: 1176px;
       }
+
+      .border {
+          border: 1px solid black;
+      }
   </style>
 </head>
 
@@ -46,8 +50,8 @@
   </div>
   <hr>
   <div id="container" class="normal">
-    <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" id="canvas-overlay"></canvas>
-    <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" id="canvas"></canvas>
+    <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" class="border" id="canvas-overlay"></canvas>
+    <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" class="border" id="canvas"></canvas>
   </div>
   <p>Enter to rotate canvas, Space to clear screen</p>
 
@@ -61,8 +65,7 @@
     const MAX_DISPLAY_PRESSURE = 10;
     const RINGBUFFER_SIZE = 10;
 
-    // landscape / portrait
-    let rotated = false;
+    let rotation = 0;
 
     let canvas = document.getElementById("canvas");
     let ctx = canvas.getContext("2d");
@@ -160,9 +163,7 @@
           ctx.fillRect(data[0] * scaleX, data[1] * scaleY, 2, 2);
           ctx.fill();
         }
-
       };
-
     }
 
     function draw() {
@@ -236,19 +237,20 @@
     }
 
     document.addEventListener('keydown', function (e) {
-      if (e.code === "Enter") {
+      if (e.code === "Enter" || e.code === "KeyD") {
         // enter for rotated
         let container = document.getElementById("container");
-        rotated = !rotated;
-        console.log("Rot: ", rotated);
-        if (rotated) {
-          container.className = "rotated";
-        } else {
+        rotation += 90;
+        rotation %= 360;
+        console.log("Rot: ", rotation);
+        if (rotation % 180 === 0) {
           container.className = "normal";
+        } else {
+          container.className = "rotated";
         }
 
-        rotateCanvas(canvas);
-        rotateCanvas(canvasOverlay);
+        rotateCanvas(ctx, canvas);
+        rotateCanvas(ctxOverlay, canvasOverlay);
       } else if (e.code === "Space") {
         // Space for clear.
         e.preventDefault();
@@ -260,12 +262,25 @@
       }
     });
 
-    function rotateCanvas(c) {
-      let oldWidth = c.width;
+    function degs_to_rads(degs) {
+      return degs / (180 / Math.PI);
+    }
+
+    function rotateCanvas(ctx, canvas) {
+      let oldWidth = canvas.width;
       // noinspection JSSuspiciousNameCombination
-      c.width = c.height;
+      canvas.width = canvas.height;
       // noinspection JSSuspiciousNameCombination
-      c.height = oldWidth
+      canvas.height = oldWidth;
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+      let centerX = canvas.width / 2;
+      let centerY = canvas.height / 2;
+
+      ctx.translate(centerX, centerY);
+      ctx.rotate(degs_to_rads(rotation));
+      ctx.translate(-canvas.width, -canvas.height);
     }
 
     document.getElementById("address").value = window.location.hostname + ":55555";
