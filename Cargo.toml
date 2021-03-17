@@ -1,12 +1,13 @@
 [package]
 name = "pipes-and-rust"
-version = "0.3.0"
+version = "1.0.0"
 authors = ["simon <simon@simonscode.org>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ws = "0.9.1"
-rust-embed = "5.6.0"
-simple-server = "0.4.0"
+ws = "^0.9"
+rust-embed = "^5.9"
+simple-server = "^0.4"
+byteorder = "^1.4"

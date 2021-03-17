@@ -4,9 +4,13 @@ use std::fs::File;
 use std::io::Read;
 use std::thread;
 
+use byteorder::{ByteOrder, LittleEndian};
 use rust_embed::RustEmbed;
 use simple_server::Server;
 use ws::{listen, Message};
+
+use crate::Axis::*;
+use crate::DigitizerEvent::*;
 
 #[derive(RustEmbed)]
 #[folder = "res/"]
@@ -28,46 +32,58 @@ fn main() {
             .name(format!("connection_handler_{}", out.connection_id()))
             .spawn(move || {
                 println!("Got Connection!");
-                let mut input = File::open("/dev/input/event1").expect("file");
+                let mut input = File::open("/dev/input/event1").expect("opening wacom file");
                 let mut buf = [0u8; 16];
 
-                let mut x = 0;
-                let mut y = 0;
-                let mut pressure = 0;
-                let mut mode = 0;
+                let mut state = DigitizerState::default();
 
                 while let Ok(()) = input.read_exact(&mut buf) {
-                    // Using notes from https://github.com/ichaozi/RemarkableFramebuffer
-                    let typ = buf[8];
-                    let code = buf[10] as i32 + buf[11] as i32 * 0x100;
-                    let value = buf[12] as i32
-                        + buf[13] as i32 * 0x100
-                        + buf[14] as i32 * 0x10000
-                        + buf[15] as i32 * 0x1000000;
+                    let event = parse_digitizer_event(&buf);
 
-                    if typ == 1 {
-                        if code == 320 {
-                            mode = 0;
-                        } else if code == 321 {
-                            mode = 1;
+                    println!("Event: {:?}", event);
+
+                    if let Ok(event) = event {
+                        match event {
+                            Sync => {
+                                let data_string = format!(
+                                    "[{},{},{},{}]",
+                                    state.x,
+                                    state.y,
+                                    state.pressure,
+                                    state.tool
+                                );
+                                println!("Sending: {}", data_string);
+
+                                if let Err(value) = out.send(
+                                    Message::text(
+                                        data_string
+                                    )
+                                ) {
+                                    eprintln!("Error: {:?}", value);
+                                    return;
+                                };
+                            }
+                            ChangeTool(tool) => {
+                                match tool {
+                                    Tool::ToolPen => state.tool = 1,
+                                    Tool::ToolRubber => state.tool = 0,
+                                    // Touch always happens, when the pen starts touching the tablet
+                                    Tool::Touch => {}
+                                    Tool::Stylus => {}
+                                    Tool::Stylus2 => {}
+                                }
+                            }
+                            Absolute(axis) => {
+                                match axis {
+                                    X(value) => state.x = value,
+                                    Y(value) => state.y = value,
+                                    Pressure(value) => state.pressure = value,
+                                    Distance(_) => {}
+                                    TiltX(_) => {}
+                                    TiltY(_) => {}
+                                }
+                            }
                         }
-                    }
-                    // Absolute position
-                    if typ == 3 {
-                        if code == 0 {
-                            x = value
-                        } else if code == 1 {
-                            y = value
-                        } else if code == 24 {
-                            pressure = value
-                        }
-                        if let Err(value) = out.send(Message::text(format!(
-                            "[{},{},{},{}]",
-                            x, y, pressure, mode
-                        ))) {
-                            eprintln!("Error: {:?}", value);
-                            return;
-                        };
                     }
                 }
             })
@@ -76,6 +92,81 @@ fn main() {
             println!("Got: {}", msg);
             Ok(())
         }
+    }).expect("listening to websocket port");
+}
+
+
+struct DigitizerState {
+    x: i32,
+    y: i32,
+    pressure: i32,
+    tool: u8,
+}
+
+impl Default for DigitizerState {
+    fn default() -> Self {
+        DigitizerState {
+            x: 0,
+            y: 0,
+            pressure: 0,
+            tool: 1,
+        }
+    }
+}
+
+#[derive(PartialEq, Debug)]
+enum Tool {
+    ToolPen = 320,
+    ToolRubber = 321,
+    Touch = 330,
+    Stylus = 331,
+    Stylus2 = 332,
+}
+
+#[derive(Debug)]
+enum Axis {
+    X(i32),
+    Y(i32),
+    TiltX(i32),
+    TiltY(i32),
+    Pressure(i32),
+    Distance(i32),
+}
+
+#[derive(Debug)]
+enum DigitizerEvent {
+    Sync,
+    ChangeTool(Tool),
+    Absolute(Axis),
+}
+
+// Using notes from https://github.com/ichaozi/RemarkableFramebuffer and the libremarkable crate
+fn parse_digitizer_event(input: &[u8; 16]) -> Result<DigitizerEvent, ()> {
+    let typ = input[8];
+    let code = LittleEndian::read_i16(&input[10..12]);
+    let value = LittleEndian::read_i32(&input[12..16]);
+
+    println!("{},{},{}", typ, code, value);
+
+    Ok(match typ {
+        0 => Sync,
+        1 => ChangeTool(match code {
+            320 => Tool::ToolPen,
+            321 => Tool::ToolRubber,
+            330 => Tool::Touch,
+            331 => Tool::Stylus,
+            332 => Tool::Stylus2,
+            _ => return Err(())
+        }),
+        3 => Absolute(match code {
+            0 => X(value),
+            1 => Y(value),
+            24 => Pressure(value),
+            25 => Distance(value),
+            26 => TiltX(value),
+            27 => TiltY(value),
+            _ => return Err(())
+        }),
+        _ => return Err(())
     })
-    .unwrap();
 }
