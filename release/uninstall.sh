@@ -11,8 +11,8 @@ ssh "$host" "killall pipes-and-rust"
 echo "Done"
 
 echo "Removing files from device..."
-ssh "rm /opt/pipes-and-rust" || exit 1
-ssh "rm /lib/systemd/system/pipes-and-rust.service" || exit 1
+ssh "$host" "rm /opt/pipes-and-rust" || exit 1
+ssh "$host" "rm /lib/systemd/system/pipes-and-rust.service" || exit 1
 ssh "$host" "systemctl daemon-reload" || exit 1
 echo "Done"
 
