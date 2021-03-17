@@ -16,8 +16,8 @@
       }
 
       .rotated {
-          width: 750px;
-          height: 1176px;
+          height: 750px;
+          width: 478px;
       }
 
       .border {
@@ -50,10 +50,13 @@
   </div>
   <hr>
   <div id="container" class="normal">
-    <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" class="border" id="canvas-overlay"></canvas>
+    <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" class="border"
+            id="canvas-overlay"></canvas>
     <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" class="border" id="canvas"></canvas>
   </div>
   <p>Enter to rotate canvas, Space to clear screen</p>
+<!--  <br>-->
+<!--  <p id="debug_pos"></p>-->
 
   <script>
 
@@ -63,9 +66,12 @@
     const RATIO = MAX_X / MAX_Y;
     const MAX_PRESSURE = 4096;
     const MAX_DISPLAY_PRESSURE = 10;
-    const RINGBUFFER_SIZE = 10;
+    const NORMAL_HEIGHT = 750;
+    const NORMAL_WIDTH = 1176;
+    const ROTATED_HEIGHT = 750;
+    const ROTATED_WIDTH = 478;
 
-    let rotation = 0;
+    let rotation = false;
 
     let canvas = document.getElementById("canvas");
     let ctx = canvas.getContext("2d");
@@ -76,24 +82,28 @@
     let lineWidthModifier = 2.0;
     let usePenPressure = true;
 
-    let scaleX = canvas.width / MAX_X;
-    let scaleY = canvas.height / MAX_Y;
     let scalePressure = MAX_DISPLAY_PRESSURE / MAX_PRESSURE;
 
     let penState = false;
 
-    // Ring buffer to smooth out values.
-    let ringbufferX = new Float64Array(RINGBUFFER_SIZE);
-    let ringbufferY = new Float64Array(RINGBUFFER_SIZE);
-    let ringbufferZ = new Float64Array(RINGBUFFER_SIZE);
-    let mode = 0;
-
-    let rbI = 0;
-
-    let debug = false;
-
     let lastX = null;
     let lastY = null;
+
+    function translateX(x, y) {
+      if (rotation) {
+        return y * ROTATED_WIDTH / MAX_Y;
+      } else {
+        return x * NORMAL_WIDTH / MAX_X;
+      }
+    }
+
+    function translateY(x, y) {
+      if (rotation) {
+        return  ROTATED_HEIGHT - (x * ROTATED_HEIGHT / MAX_X);
+      } else {
+        return y * NORMAL_HEIGHT / MAX_Y;
+      }
+    }
 
     function updateLineWidth() {
       lineWidthModifier = document.getElementById("pensizeSelector").value / 8;
@@ -144,95 +154,58 @@
 
       websocket.onmessage = function (event) {
         // data is [x, y, pressure, mode]
+        // mode 0 = erase
+        // mode 1 = pen
         let data = JSON.parse(event.data);
+        // console.log("x:", data[0], "y:", data[1], "p:", data[2],"t:",data[3]);
 
-        // Pre-increment rbI so we can use it in draw to refer to the current head.
-        rbI = (rbI + 1) % RINGBUFFER_SIZE;
-        ringbufferX[rbI] = data[0];
-        ringbufferY[rbI] = data[1];
-        ringbufferZ[rbI] = data[2];
-        mode = data[3];
+        let x = translateX(data[0], data[1]);
+        let y = translateY(data[0], data[1]);
+        let pressure = data[2];
+        let mode = data[3];
 
-        overlay(data[0] * scaleX, data[1] * scaleY);
+        // document.getElementById("debug_pos").textContent = Math.floor(x) + " x " + Math.floor(y);
 
-        draw();
-
-        if (debug) {
-          ctx.fillStyle = "red";
-          ctx.beginPath();
-          ctx.fillRect(data[0] * scaleX, data[1] * scaleY, 2, 2);
-          ctx.fill();
-        }
+        overlay(x, y, pressure, mode);
+        draw(x, y, pressure, mode);
+        penState = pressure > 0;
       };
     }
 
-    function draw() {
-      // Loop through ringbuffer elements...
-      // Average all ringbuffer elements where the pressure is nonzeroish.
-      let avgX = 0;
-      let avgY = 0;
-      let avgZ = 0;
-      let cnt = 0;
-      for (let i = 0; i < RINGBUFFER_SIZE; i++) {
-        // If this does look like the end of a stroke, still use the whole
-        // framebuffer. It's short enough to drain quickly without confusing
-        // this stroke with the next.
-        if (ringbufferZ[i] > 10) {
-          avgX += ringbufferX[i];
-          avgY += ringbufferY[i];
-          avgZ += ringbufferZ[i];
-          cnt += 1;
+    function draw(x, y, pressure, mode) {
+      // Only start drawing if we already started a line.
+      if (penState) {
+        if (mode === 1) {
+          ctx.strokeStyle = "#000000";
+          ctx.lineWidth = calculateLineWidth(pressure);
+          ctx.globalCompositeOperation = "source-over";
+          ctx.beginPath();
+          ctx.moveTo(lastX, lastY);
+          ctx.lineTo(x, y);
+          ctx.stroke();
+        } else if (mode === 0) {
+          ctx.fillStyle = "#000000";
+          ctx.globalCompositeOperation = "destination-out";
+          ctx.beginPath();
+          ctx.arc(x, y, 20, 0, 2 * Math.PI);
+          ctx.fill();
         }
       }
 
-      avgX /= cnt;
-      avgY /= cnt;
-      avgZ /= cnt;
-      avgX *= scaleX;
-      avgY *= scaleY;
-
-      // If there were zero entries with nonzero pressure, that's the
-      // end of a stroke. Forget the last point.
-      if (cnt === 0) {
-        penState = false;
-        lastX = null;
-        lastY = null;
-      } else {
-        // Only start drawing if we already started a line.
-        if (penState) {
-          if (mode === 0) {
-            ctx.strokeStyle = "#000000";
-            ctx.lineWidth = calculateLineWidth(avgZ);
-            ctx.globalCompositeOperation = "source-over";
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(avgX, avgY);
-            ctx.stroke();
-          } else {
-            ctx.fillStyle = "#000000";
-            ctx.globalCompositeOperation = "destination-out";
-            ctx.beginPath();
-            ctx.arc(avgX, avgY, 20, 0, 2 * Math.PI);
-            ctx.fill();
-          }
-        }
-        penState = true;
-
-        // Always assign last x and y when there's pen pressure,
-        // to mark the start of a line.
-        lastX = avgX;
-        lastY = avgY;
-      }
+      // Always assign last x and y when there's pen pressure,
+      // to mark the start of a line.
+      lastX = x;
+      lastY = y;
     }
 
-    function overlay(x, y) {
+    function overlay(x, y, pressure, mode) {
       // Clear when hovering, but keep drawing for the duration of a stroke to highlight it.
       if (!penState) {
         ctxOverlay.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
       }
-      ctxOverlay.fillStyle = mode === 0 ? "rgb(200,200,255)" : "rgb(255,200,200)";
+      ctxOverlay.fillStyle = mode === 1 ? "rgb(200,200,255)" : "rgb(255,200,200)";
       ctxOverlay.beginPath();
-      ctxOverlay.arc(x, y, 20, 0, 2 * Math.PI);
+      ctxOverlay.arc(x, y, 10, 0, 2 * Math.PI);
       ctxOverlay.fill();
     }
 
@@ -240,48 +213,29 @@
       if (e.code === "Enter" || e.code === "KeyD") {
         // enter for rotated
         let container = document.getElementById("container");
-        rotation += 90;
-        rotation %= 360;
+        rotation = !rotation;
         console.log("Rot: ", rotation);
-        if (rotation % 180 === 0) {
-          container.className = "normal";
-        } else {
-          container.className = "rotated";
-        }
 
-        rotateCanvas(ctx, canvas);
-        rotateCanvas(ctxOverlay, canvasOverlay);
+        if (rotation) {
+          container.className = "rotated";
+          canvas.width = ROTATED_WIDTH;
+          canvas.height = ROTATED_HEIGHT;
+          canvasOverlay.width = ROTATED_WIDTH;
+          canvasOverlay.height = ROTATED_HEIGHT;
+        } else {
+          container.className = "normal";
+          canvas.width = NORMAL_WIDTH;
+          canvas.height = NORMAL_HEIGHT;
+          canvasOverlay.width = NORMAL_WIDTH;
+          canvasOverlay.height = NORMAL_HEIGHT;
+        }
       } else if (e.code === "Space") {
         // Space for clear.
         e.preventDefault();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctxOverlay.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
-      } else if (e.code === "KeyD") {
-        // 'd' for debug
-        debug = !debug;
       }
     });
-
-    function degs_to_rads(degs) {
-      return degs / (180 / Math.PI);
-    }
-
-    function rotateCanvas(ctx, canvas) {
-      let oldWidth = canvas.width;
-      // noinspection JSSuspiciousNameCombination
-      canvas.width = canvas.height;
-      // noinspection JSSuspiciousNameCombination
-      canvas.height = oldWidth;
-
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-      let centerX = canvas.width / 2;
-      let centerY = canvas.height / 2;
-
-      ctx.translate(centerX, centerY);
-      ctx.rotate(degs_to_rads(rotation));
-      ctx.translate(-canvas.width, -canvas.height);
-    }
 
     document.getElementById("address").value = window.location.hostname + ":55555";
     connect();
