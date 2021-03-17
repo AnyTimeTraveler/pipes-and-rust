@@ -22,4 +22,5 @@ ssh "$host" "systemctl enable pipes-and-rust.service" || exit 1
 ssh "$host" "systemctl start pipes-and-rust.service" || exit 1
 echo "Done"
 
+echo
 echo "pipes-and-rust has been successfully installed on your device!"

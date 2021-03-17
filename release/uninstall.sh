@@ -16,4 +16,5 @@ ssh "rm /lib/systemd/system/pipes-and-rust.service" || exit 1
 ssh "$host" "systemctl daemon-reload" || exit 1
 echo "Done"
 
+echo
 echo "pipes-and-rust has been successfully removed from your device!"
