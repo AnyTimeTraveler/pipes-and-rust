@@ -1,6 +1,6 @@
 [package]
 name = "pipes-and-rust"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["simon <simon@simonscode.org>"]
 edition = "2018"
 
