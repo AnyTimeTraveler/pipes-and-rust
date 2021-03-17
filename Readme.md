@@ -1,4 +1,5 @@
 # Pipes and Rust
+[![Rust](https://github.com/AnyTimeTraveler/pipes-and-rust/actions/workflows/rust.yml/badge.svg?branch=master)](https://github.com/AnyTimeTraveler/pipes-and-rust/actions/workflows/rust.yml)
 
 A small program that runs on your reMarkable 2 that allows you to draw on a tiny website hosted on the tablet itself.
 No need to install anything else.
@@ -29,6 +30,12 @@ No need to install anything else.
 2. Install [Cross](https://github.com/rust-embedded/cross) to build for armv7
 3. Set hostname in `build_push_run.sh`
 4. Execute `build_push_run.sh`
+
+# Uninstallation
+
+1. Set IP or hostname in `uninstall.sh`
+2. Run `uninstall.sh` as normal user
+
 
 # Credits
 
