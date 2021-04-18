@@ -14,7 +14,5 @@ echo "Done"
 version="$(grep 'version' Cargo.toml | head -n 1 | cut -d\" -f2)"
 
 cd release || exit 1
-zip "../pipes-and-rust-release-$version.zip" \
-./install.sh \
-./pipes-and-rust \
-./pipes-and-rust.service
+zip "../pipes-and-rust-release-$version.zip" ./*
+
