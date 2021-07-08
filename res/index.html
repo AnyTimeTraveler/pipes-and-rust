@@ -5,73 +5,109 @@
   <title>ReMarkable Canvas</title>
   <meta charset="UTF-8">
   <style>
-      #container {
-          position: relative;
-          border: 1px solid #aaa;
+      html, body {
+          height: 100%;
+          width: 100%;
+          margin: 0;
+          padding: 0;
       }
 
-      .normal {
-          width: 1176px;
-          height: 750px;
+      #outside {
+          height: 100%;
+          width: 100%;
+          display: flex;
+          flex-flow: column;
       }
 
-      .rotated {
-          height: 750px;
-          width: 478px;
-      }
-
-      .border {
+      #header {
+          margin: 0.5%;
+          padding: 8px;
+          flex-grow: 0;
+          flex-shrink: 0;
+          flex-basis: 52px;
           border: 1px solid black;
+      }
+
+      #footer {
+          flex-grow: 1000;
+          flex-shrink: 0;
+          flex-basis: 200px;
+          margin: 0.5%;
+          border: 1px solid black;
+      }
+
+      #inner_header {
+          display: flex;
+          flex-direction: row;
+          flex-wrap: nowrap;
+      }
+
+      #container {
+          height: 100%;
+          width: 100%;
+          position: relative;
+      }
+
+      canvas {
+          position: absolute;
+          left: 0;
+          top: 0;
+          height: inherit;
+          width: inherit;
+      }
+
+      #debug {
+          margin-top: 5px;
       }
   </style>
 </head>
 
 <body>
-  <div style="display: flex; flex-direction: row; flex-wrap: nowrap">
-    <div>
-      <label>Address: <input type="text" id="address"></label>
-      <button onclick="connect()">Connect</button>
-      <div>Status:
-        <div id="status" style="display: inline">Not yet connected</div>
+  <div id="outside">
+    <div id="header">
+      <div id="inner_header">
+        <div>
+          <label>Address: <input type="text" id="address"></label>
+          <button onclick="connect()">Connect</button>
+          <div style="margin-top: 5px;">Status:
+            <div id="status" style="display: inline">Not yet connected</div>
+          </div>
+        </div>
+        <div style="display: block; margin-left: 20px">
+          <div>
+            <label>Change Pensize with Pressure:
+              <input id="pressureCheckbox" type="checkbox" oninput="updatePressureResponse()" checked>
+            </label>
+          </div>
+          <div style="margin-top: 5px;">
+            <label>Pen size:
+              <input id="pensizeSelector" type="number" min="1" max="100" oninput="updateLineWidth()" value="16">
+            </label>
+          </div>
+        </div>
+        <div style="display: block; margin-left: 20px">
+          <button id="rotation" onclick="rotate()">Rotation: Portrait</button>
+          <div id="debug"></div>
+        </div>
       </div>
     </div>
-    <div style="display: block; margin-left: 20px">
-      <div>
-        <label>Change Pensize with Pressure:
-          <input id="pressureCheckbox" type="checkbox" oninput="updatePressureResponse()" checked>
-        </label>
-      </div>
-      <div>
-        <label>Pen size:
-          <input id="pensizeSelector" type="number" min="1" max="100" oninput="updateLineWidth()" value="16">
-        </label>
+    <div id="footer">
+      <div id="container">
+        <canvas id="canvas-overlay"></canvas>
+        <canvas id="canvas"></canvas>
       </div>
     </div>
   </div>
-  <hr>
-  <div id="container" class="normal">
-    <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" class="border"
-            id="canvas-overlay"></canvas>
-    <canvas width="1176" height="750" style="position: absolute; left: 0;top: 0" class="border" id="canvas"></canvas>
-  </div>
-  <p>Enter to rotate canvas, Space to clear screen</p>
-<!--  <br>-->
-<!--  <p id="debug_pos"></p>-->
 
   <script>
-
     // Found by finding the maximum values when experimenting
     const MAX_X = 20966;
     const MAX_Y = 15725;
-    const RATIO = MAX_X / MAX_Y;
     const MAX_PRESSURE = 4096;
-    const MAX_DISPLAY_PRESSURE = 10;
-    const NORMAL_HEIGHT = 750;
-    const NORMAL_WIDTH = 1176;
-    const ROTATED_HEIGHT = 750;
-    const ROTATED_WIDTH = 478;
 
-    let rotation = false;
+    let rotation = 0;
+
+    let container = document.getElementById("container");
 
     let canvas = document.getElementById("canvas");
     let ctx = canvas.getContext("2d");
@@ -82,26 +118,67 @@
     let lineWidthModifier = 2.0;
     let usePenPressure = true;
 
-    let scalePressure = MAX_DISPLAY_PRESSURE / MAX_PRESSURE;
-
     let penState = false;
 
     let lastX = null;
     let lastY = null;
 
+    new ResizeObserver(function () {
+      let height = container.clientHeight;
+      let width = container.clientWidth;
+
+      canvas.height = height;
+      canvas.width = width;
+      canvasOverlay.height = height;
+      canvasOverlay.width = width;
+
+      console.log("Resize: ", height, width);
+    }).observe(container);
+
+    function getWidth() {
+      return container.clientWidth
+    }
+
+    function getHeight() {
+      return container.clientHeight
+    }
+
+    function isFlipped() {
+      return rotation > 1;
+    }
+
+    function isLandscape() {
+      return rotation % 2 === 0;
+    }
+
     function translateX(x, y) {
-      if (rotation) {
-        return y * ROTATED_WIDTH / MAX_Y;
+      let orientation_corrected;
+
+      if (isLandscape()) {
+        orientation_corrected = y * getWidth() / MAX_Y;
       } else {
-        return x * NORMAL_WIDTH / MAX_X;
+        orientation_corrected = x * getWidth() / MAX_X;
+      }
+
+      if (isFlipped()) {
+        return getWidth() - orientation_corrected;
+      } else {
+        return orientation_corrected;
       }
     }
 
     function translateY(x, y) {
-      if (rotation) {
-        return  ROTATED_HEIGHT - (x * ROTATED_HEIGHT / MAX_X);
+      let orientation_corrected;
+      if (isLandscape()) {
+        orientation_corrected = getHeight() - (x * getHeight() / MAX_X);
       } else {
-        return y * NORMAL_HEIGHT / MAX_Y;
+        orientation_corrected = y * getHeight() / MAX_Y;
+      }
+
+      if (isFlipped()) {
+        return getHeight() - orientation_corrected;
+      } else {
+        return orientation_corrected;
       }
     }
 
@@ -114,12 +191,30 @@
     }
 
     function calculateLineWidth(pressure) {
-      console.log(pressure, MAX_PRESSURE, lineWidthModifier);
       if (usePenPressure) {
         let p = pressure / MAX_PRESSURE;
         return lineWidthModifier * (p - 0.5) * 2;
       } else {
         return lineWidthModifier;
+      }
+    }
+
+    function rotate() {
+      let rotate_button = document.getElementById("rotation");
+      rotation = (rotation + 1) % 4;
+      switch (rotation) {
+        case 0:
+          rotate_button.innerText = "Rotation: Portrait";
+          break;
+        case 1:
+          rotate_button.innerText = "Rotation: Landscape";
+          break;
+        case 2:
+          rotate_button.innerText = "Rotation: Portrait Flipped";
+          break;
+        case 3:
+          rotate_button.innerText = "Rotation: Landscape Flipped";
+          break;
       }
     }
 
@@ -153,18 +248,19 @@
       }
 
       websocket.onmessage = function (event) {
-        // data is [x, y, pressure, mode]
+        // data is [x, y, pressure, tool]
         // mode 0 = erase
         // mode 1 = pen
         let data = JSON.parse(event.data);
         // console.log("x:", data[0], "y:", data[1], "p:", data[2],"t:",data[3]);
+        // console.log("message");
 
         let x = translateX(data[0], data[1]);
         let y = translateY(data[0], data[1]);
         let pressure = data[2];
         let mode = data[3];
 
-        // document.getElementById("debug_pos").textContent = Math.floor(x) + " x " + Math.floor(y);
+        // document.getElementById("debug").textContent = Math.floor(x) + " x " + Math.floor(y);
 
         overlay(x, y, pressure, mode);
         draw(x, y, pressure, mode);
@@ -210,26 +306,7 @@
     }
 
     document.addEventListener('keydown', function (e) {
-      if (e.code === "Enter" || e.code === "KeyD") {
-        // enter for rotated
-        let container = document.getElementById("container");
-        rotation = !rotation;
-        console.log("Rot: ", rotation);
-
-        if (rotation) {
-          container.className = "rotated";
-          canvas.width = ROTATED_WIDTH;
-          canvas.height = ROTATED_HEIGHT;
-          canvasOverlay.width = ROTATED_WIDTH;
-          canvasOverlay.height = ROTATED_HEIGHT;
-        } else {
-          container.className = "normal";
-          canvas.width = NORMAL_WIDTH;
-          canvas.height = NORMAL_HEIGHT;
-          canvasOverlay.width = NORMAL_WIDTH;
-          canvasOverlay.height = NORMAL_HEIGHT;
-        }
-      } else if (e.code === "Space") {
+      if (e.code === "Space") {
         // Space for clear.
         e.preventDefault();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
