@@ -26,13 +26,13 @@ fn main() {
     let model = fs::read_to_string("/proc/device-tree/model")
         .expect("Something went wrong reading the file");
 
-    let event_file = if model.eq("reMarkable 1.0\u{0}") {
-        "/dev/input/event0"
-    } else if model.eq("reMarkable 2.0\u{0}") {
-        "/dev/input/event1"
-    } else {
-        println!("Model is not supported: {}", model);
-        process::exit(1);
+    let event_file = match model.as_str() {
+        "reMarkable 1.0\u{0}" => "/dev/input/event0",
+        "reMarkable 2.0\u{0}" => "/dev/input/event1",
+        _ => {
+            println!("Model is not supported: {}", model);
+            process::exit(1);
+        }
     };
 
     thread::spawn(move || {
