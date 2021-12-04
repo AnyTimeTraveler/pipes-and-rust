@@ -4,16 +4,15 @@
 host="remarkable"
 
 
-
 echo "Stopping service..."
-ssh "$host" "systemctl disable --now pipes-and-rust.service"
-ssh "$host" "killall pipes-and-rust"
+ssh "$host" "test -f /lib/systemd/system/pipes-and-rust.service && systemctl disable --now pipes-and-rust.service" || exit 1
+ssh "$host" "pidof pipes-and-rust > /dev/null && killall pipes-and-rust" || exit 1
 echo "Done"
 
 echo "Removing files from device..."
-ssh "$host" "rm /opt/pipes-and-rust" || exit 1
-ssh "$host" "rm /lib/systemd/system/pipes-and-rust.service" || exit 1
-ssh "$host" "systemctl daemon-reload" || exit 1
+ssh "$host" "test -f /opt/pipes-and-rust && rm /opt/pipes-and-rust" || exit 1
+ssh "$host" "test -f /lib/systemd/system/pipes-and-rust.service && rm /lib/systemd/system/pipes-and-rust.service" || exit 1
+ssh "$host" "systemctl daemon-reload"
 echo "Done"
 
 echo

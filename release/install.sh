@@ -2,17 +2,21 @@
 
 # Set hostname or ip address of your reMarkable
 host="remarkable"
+port="400"
 
 
 echo "Creating /opt/ directory, if it doesn't exist, yet.."
 ssh "$host" "mkdir -p /opt/" || exit 1
 echo "Done"
+
 echo "Stopping previous version, if it exists..."
 ssh "$host" "systemctl stop pipes-and-rust.service"
 ssh "$host" "killall pipes-and-rust"
 echo "Done"
+
 echo "Copying files to device..."
 scp "./pipes-and-rust" "$host:/opt/pipes-and-rust" || exit 1
+sed "s/PORT=80/PORT=${port}/" -i "./pipes-and-rust.service"
 scp "./pipes-and-rust.service" "$host:/lib/systemd/system/pipes-and-rust.service" || exit 1
 echo "Done"
 
