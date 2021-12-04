@@ -22,7 +22,7 @@ fn main() {
     let server_port = env::var("PORT").unwrap_or("80".to_owned());
 
     let server = Server::new(|_, mut response| {
-        Ok(response.body(Vec::from(Asset::get("index.html").unwrap()))?)
+        Ok(response.body(Vec::from(Asset::get("index.html").unwrap().data))?)
     });
 
     let model = fs::read_to_string("/proc/device-tree/model")
@@ -32,7 +32,7 @@ fn main() {
         "reMarkable 1.0\u{0}" => "/dev/input/event0",
         "reMarkable 2.0\u{0}" => "/dev/input/event1",
         _ => {
-            println!("Model is not supported: {}", model);
+            eprintln!("Model is not supported: {}", model);
             process::exit(1);
         }
     };
