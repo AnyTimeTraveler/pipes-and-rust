@@ -1,7 +1,7 @@
 extern crate simple_server;
 
-use std::fs;
-use std::fs::File;
+use std::env;
+use std::fs::{self,File};
 use std::io::Read;
 use std::process;
 use std::thread;
@@ -19,6 +19,11 @@ use crate::DigitizerEvent::*;
 struct Asset;
 
 fn main() {
+    let server_port = match env::var("PORT") {
+        Ok(v) => v,
+        _ => "80".to_string(),
+    };
+
     let server = Server::new(|_, mut response| {
         Ok(response.body(Vec::from(Asset::get("index.html").unwrap()))?)
     });
@@ -36,8 +41,8 @@ fn main() {
     };
 
     thread::spawn(move || {
-        println!("Listening for http connections on port 80...");
-        server.listen("0.0.0.0", "80");
+        println!("Listening for http connections on port {}...", server_port);
+        server.listen("0.0.0.0", server_port.as_str());
     });
 
     println!("Listening for websocket connections on port 55555...");
