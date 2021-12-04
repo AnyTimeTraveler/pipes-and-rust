@@ -43,6 +43,8 @@ This work is based on [pipes-and-paper](https://gitlab.com/afandian/pipes-and-pa
 
 Thank you to [MarkPash](https://github.com/MarkPash) for adding the eraser function.
 
+Thank you to [Philipp Marmet](https://github.com/fujexo) for making the port adjustable and implementing support for the reMarkable 1.
+
 # License
 
 MIT-License
