@@ -1,8 +1,9 @@
 extern crate simple_server;
 
 use std::env;
-use std::fs::File;
+use std::fs::{self,File};
 use std::io::Read;
+use std::process;
 use std::thread;
 
 use byteorder::{ByteOrder, LittleEndian};
@@ -27,6 +28,18 @@ fn main() {
         Ok(response.body(Vec::from(Asset::get("index.html").unwrap()))?)
     });
 
+    let model = fs::read_to_string("/proc/device-tree/model")
+        .expect("Something went wrong reading the file");
+
+    let event_file = match model.as_str() {
+        "reMarkable 1.0\u{0}" => "/dev/input/event0",
+        "reMarkable 2.0\u{0}" => "/dev/input/event1",
+        _ => {
+            println!("Model is not supported: {}", model);
+            process::exit(1);
+        }
+    };
+
     thread::spawn(move || {
         println!("Listening for http connections on port {}...", server_port);
         server.listen("0.0.0.0", server_port.as_str());
@@ -38,7 +51,7 @@ fn main() {
             .name(format!("connection_handler_{}", out.connection_id()))
             .spawn(move || {
                 println!("Got Connection!");
-                let mut input = File::open("/dev/input/event1").expect("opening wacom file");
+                let mut input = File::open(event_file).expect("opening wacom file");
                 let mut buf = [0u8; 16];
 
                 let mut state = DigitizerState::default();
