@@ -1,6 +1,8 @@
 # Pipes and Rust
 [![Rust](https://github.com/AnyTimeTraveler/pipes-and-rust/actions/workflows/rust.yml/badge.svg?branch=master)](https://github.com/AnyTimeTraveler/pipes-and-rust/actions/workflows/rust.yml)
 
+# No longer actively maintained! (PRs will be accepted, if they don't require much input from me)
+
 ## Now also works with reMarkable 1!
 
 A small program that runs on your reMarkable 1 and 2 that allows you to draw on a tiny website hosted on the tablet itself.
